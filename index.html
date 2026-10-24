@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Luyện Nghe & Phát Âm Tiếng Trung AI</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; padding: 15px; margin: 0; display: flex; flex-direction: column; align-items: center; }
+    h2 { color: #1f4e79; margin-bottom: 15px; text-align: center; }
+    .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 15px; width: 100%; max-width: 420px; box-shadow: 0 3px 8px rgba(0,0,0,0.08); box-sizing: border-box; }
+    .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; }
+    .hanzi-main { font-size: 24px; font-weight: bold; color: #1f4e79; }
+    .pinyin-main { color: #666; font-size: 14px; font-style: italic; }
+    .meaning-main { color: #2e7d32; font-size: 14px; font-weight: 500; }
+    
+    .action-btns { display: flex; gap: 8px; }
+    .btn { border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .speaker-btn { background: #e6f4ea; color: #137333; }
+    .mic-btn { background: #e8f0fe; color: #1a73e8; }
+    .mic-btn.recording { background: #ea4335; color: white; animation: pulse 1.2s infinite; }
+
+    .collocation-box { background: #f2f7fa; border-left: 4px solid #1f4e79; padding: 10px; border-radius: 4px; margin-top: 8px; }
+    .collocation-title { font-size: 12px; color: #555; font-weight: bold; margin-bottom: 4px; }
+    .collocation-text { font-size: 16px; color: #333; line-height: 1.5; white-space: pre-line; }
+
+    .result-box { margin-top: 10px; font-size: 15px; padding: 10px; border-radius: 8px; background: #fff; border: 1px dashed #ccc; display: none; }
+    .char-correct { color: #2e7d32; font-weight: bold; font-size: 18px; }
+    .char-wrong { color: #d32f2f; font-weight: bold; font-size: 18px; background-color: #ffebee; padding: 0 2px; border-radius: 3px; }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🎧 Luyện Nghe & Nói Cụm Từ Cột E</h2>
+  <div id="app" style="width: 100%; max-width: 420px; text-align: center; color: #666;">Đang kết nối dữ liệu từ Google Sheets...</div>
+
+  <script>
+    // ⚠️ THAY ĐƯỜNG LINK WEB APP GOOGLE APPS SCRIPT BẠN COPY Ở BƯỚC 1 VÀO NGOẶC KÉP DƯỚI ĐÂY:
+    var API_URL = "https://script.google.com/macros/s/AKfycbxMifCbhgnM-Lc2YuB5pxKZVsM3mwnwmO44K5f1sStX7TAcVekDA8xsMXuUEPK2h3AR/exec";
+
+    fetch(API_URL)
+      .then(response => response.json())
+      .then(data => {
+        var html = '';
+        data.forEach((item, index) => {
+          html += `
+            <div class="card">
+              <div class="header-row">
+                <div>
+                  <span class="hanzi-main">${item.hanzi}</span> 
+                  <span class="pinyin-main">(${item.pinyin})</span>
+                  <div class="meaning-main">${item.meaning}</div>
+                </div>
+                <div class="action-btns">
+                  <button class="btn speaker-btn" title="Nghe mẫu" onclick="playAudio('${encodeURIComponent(item.collocation)}')">🔊</button>
+                  <button class="btn mic-btn" title="Nói thử" id="mic-${index}" onclick="startRecord('${encodeURIComponent(item.collocation)}', ${index})">🎤</button>
+                </div>
+              </div>
+              
+              <div class="collocation-box">
+                <div class="collocation-title">📌 Cụm hành động Cột E cần học:</div>
+                <div class="collocation-text">${item.collocation}</div>
+              </div>
+
+              <div class="result-box" id="res-${index}"></div>
+            </div>`;
+        });
+        document.getElementById('app').innerHTML = html;
+      })
+      .catch(err => {
+        document.getElementById('app').innerHTML = "⚠️ Lỗi kết nối! Hãy kiểm tra lại dán đúng link Web App ở Bước 1 chưa nhé.";
+      });
+
+    // 🔊 TÍNH NĂNG NGHE MẪU (PHÁT ÂM CHUẨN BẮC KINH)
+    function playAudio(textEncoded) {
+      var text = decodeURIComponent(textEncoded);
+      var cleanText = text.replace(/•/g, '').replace(/\(.*?\)/g, ''); // Bỏ các ký tự rác
+      
+      var utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = 'zh-CN';
+      utterance.rate = 0.85; // Đọc với tốc độ vừa phải
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // 🎙️ TÍNH NĂNG NHẬN DIỆN GIỌNG NÓI & PHÂN TÍCH BÔI XANH / ĐỎ
+    function startRecord(targetCollocationEncoded, index) {
+      var targetCollocation = decodeURIComponent(targetCollocationEncoded);
+      var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        alert("Trình duyệt không hỗ trợ nhận diện giọng nói! Bạn nên dùng Safari trên iPhone hoặc Chrome trên Android.");
+        return;
+      }
+
+      var resBox = document.getElementById('res-' + index);
+      var micBtn = document.getElementById('mic-' + index);
+      
+      resBox.style.display = 'block';
+      resBox.innerHTML = "🎙️ <i>Đang nghe... Bạn hãy đọc cụm từ ở Cột E nhé!</i>";
+      micBtn.classList.add("recording");
+
+      var recognition = new SpeechRecognition();
+      recognition.lang = 'zh-CN';
+      recognition.interimResults = false;
+
+      recognition.onresult = function(event) {
+        micBtn.classList.remove("recording");
+        var spokenText = event.results[0][0].transcript.replace(/\s+/g, '');
+        
+        var analysisHTML = "";
+        var totalChars = 0;
+        var correctCount = 0;
+
+        for (var i = 0; i < targetCollocation.length; i++) {
+          var char = targetCollocation[i];
+          
+          if ("•\n\r\t ()/,-".includes(char) || (char.charCodeAt(0) >= 32 && char.charCodeAt(0) <= 126)) {
+            analysisHTML += char === '\n' ? '<br>' : char;
+            continue;
+          }
+
+          totalChars++;
+          if (spokenText.includes(char)) {
+            analysisHTML += `<span class="char-correct">${char}</span>`;
+            correctCount++;
+          } else {
+            analysisHTML += `<span class="char-wrong">${char}</span>`;
+          }
+        }
+
+        var score = totalChars > 0 ? Math.round((correctCount / totalChars) * 100) : 0;
+        
+        resBox.innerHTML = `
+          <div style="margin-bottom: 5px;"><b>Kết quả kiểm tra phát âm:</b></div>
+          <div style="margin-bottom: 8px; line-height: 1.6;">${analysisHTML}</div>
+          <div style="font-size: 13px; color: #555;">
+            • Máy nghe được: <b>"${spokenText}"</b><br>
+            • Độ chính xác: <b style="color: ${score >= 80 ? '#2e7d32' : '#d32f2f'}">${score}%</b>
+          </div>`;
+      };
+
+      recognition.onerror = function() {
+        micBtn.classList.remove("recording");
+        resBox.innerHTML = "⚠️ Chưa nghe rõ giọng nói. Bạn hãy bấm mic và thử đọc lại to rõ hơn nhé!";
+      };
+
+      recognition.start();
+    }
+  </script>
+</body>
+</html>
