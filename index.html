@@ -39,17 +39,15 @@
   <div id="app" style="width: 100%; max-width: 420px; text-align: center; color: #666;">Đang kết nối dữ liệu từ Google Sheets...</div>
 
   <script>
-    var API_URL = "https://script.google.com/macros/s/AKfycbxMifCbhgnM-Lc2YuB5pxKZVsM3mwnwmO44K5f1sStX7TAcVekDA8xsMXuUEPK2h3AR/exec"; // GIỮ NGUYÊN LINK WEB APP GOOGLE APPS SCRIPT CỦA BẠN
+    var API_URL = "https://script.google.com/macros/s/AKfycbxMifCbhgnM-Lc2YuB5pxKZVsM3mwnwmO44K5f1sStX7TAcVekDA8xsMXuUEPK2h3AR/exec";
 
     fetch(API_URL)
       .then(response => response.json())
       .then(data => {
         var html = '';
         data.forEach((item, index) => {
-          // Tách các dòng trong Cột E dựa vào dấu xuống dòng (\n) hoặc dấu chấm tròn (•)
           var rawCollocation = item.collocation || "";
           var lines = rawCollocation.split(/\r?\n/).filter(line => line.trim() !== "");
-          
           if (lines.length === 0) lines = [rawCollocation];
 
           html += `
@@ -63,18 +61,18 @@
               </div>
               <div style="font-size: 12px; color: #555; font-weight: bold; margin-bottom: 4px;">📌 Cụm hành động Cột E:</div>`;
 
-          // Tạo vòng lặp hiển thị riêng từng dòng collocation với nút nghe/nói độc lập
           lines.forEach((line, lineIdx) => {
             var uniqueId = index + '-' + lineIdx;
-            // Trích xuất phần tiếng Trung để đọc (lấy phần trước dấu ngoặc mở '(' hoặc toàn bộ nếu không có)
-            var cleanLineForAudio = line.replace(/•/g, '').trim();
+            
+            // 🎯 LỌC CHỈ LẤY PHẦN CHỮ HÁN ĐỂ ĐỌC MẪU (Bỏ qua phần Pinyin trong ngoặc và tiếng Việt)
+            var cleanTextForAudio = line.replace(/•/g, '').replace(/\(.*?\)/g, '').trim();
 
             html += `
               <div class="item-row">
                 <div class="item-text">${line}</div>
                 <div class="action-btns">
-                  <button class="btn speaker-btn" title="Nghe mẫu chậm" onclick="playAudio('${encodeURIComponent(cleanLineForAudio)}')">🔊</button>
-                  <button class="btn mic-btn" title="Nói thử" id="mic-${uniqueId}" onclick="startRecord('${encodeURIComponent(cleanLineForAudio)}', '${uniqueId}')">🎤</button>
+                  <button class="btn speaker-btn" title="Nghe mẫu chậm" onclick="playAudio('${encodeURIComponent(cleanTextForAudio)}')">🔊</button>
+                  <button class="btn mic-btn" title="Nói thử" id="mic-${uniqueId}" onclick="startRecord('${encodeURIComponent(cleanTextForAudio)}', '${uniqueId}')">🎤</button>
                 </div>
               </div>
               <div class="result-box" id="res-${uniqueId}"></div>`;
@@ -88,23 +86,23 @@
         document.getElementById('app').innerHTML = "⚠️ Lỗi kết nối dữ liệu! Kiểm tra lại đường dẫn API.";
       });
 
-    // 🔊 ĐỌC MẪU CHẬM (Tốc độ 0.65 để nghe rõ từng âm tiết)
+    // 🔊 ĐỌC MẪU CHẬM CHỈ ĐỌC TIẾNG TRUNG
     function playAudio(textEncoded) {
       var text = decodeURIComponent(textEncoded);
       var utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'zh-CN';
-      utterance.rate = 0.65; // Đọc chậm rãi giúp người học dễ bắt chước
+      utterance.rate = 0.65; // Đọc chậm rãi
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     }
 
-    // 🎙️ NHẬN DIỆN GIỌNG NÓI & BÔI XANH / ĐỎ TỪNG DÒNG
+    // 🎙️ NHẬN DIỆN GIỌNG NÓI TRÊN SAFARI (IPHONE)
     function startRecord(targetLineEncoded, uniqueId) {
       var targetLine = decodeURIComponent(targetLineEncoded);
       var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       
       if (!SpeechRecognition) {
-        alert("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói. Hãy dùng Safari trên iOS hoặc Chrome trên Android.");
+        alert("Trình duyệt không hỗ trợ nhận diện giọng nói!");
         return;
       }
 
@@ -112,12 +110,13 @@
       var micBtn = document.getElementById('mic-' + uniqueId);
       
       resBox.style.display = 'block';
-      resBox.innerHTML = "🎙️ <i>Đang nghe... Bạn hãy đọc cụm này nhé!</i>";
+      resBox.innerHTML = "🎙️ <i>Đang nghe... Hãy đọc to rõ cụm tiếng Trung nhé!</i>";
       micBtn.classList.add("recording");
 
       var recognition = new SpeechRecognition();
       recognition.lang = 'zh-CN';
       recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
 
       recognition.onresult = function(event) {
         micBtn.classList.remove("recording");
@@ -130,8 +129,7 @@
         for (var i = 0; i < targetLine.length; i++) {
           var char = targetLine[i];
           
-          // Chỉ kiểm tra các ký tự tiếng Hán, bỏ qua khoảng trắng, pinyin trong ngoặc, dấu câu
-          if (char === '(') break; // Dừng lại khi gặp phần chú thích tiếng Việt trong ngoặc
+          // Chỉ kiểm tra các ký tự tiếng Hán, bỏ qua khoảng trắng, dấu câu
           if ("• \n\r\t/,-".includes(char) || (char.charCodeAt(0) >= 32 && char.charCodeAt(0) <= 126)) {
             continue;
           }
@@ -156,10 +154,34 @@
 
       recognition.onerror = function(event) {
         micBtn.classList.remove("recording");
-        resBox.innerHTML = `⚠️ Không bắt được giọng nói (Lỗi: <i>${event.error || 'No speech'}</i>). Hãy đảm bảo bạn cấp quyền Micro và đọc to, rõ ràng nhé!`;
+        // Thông báo lỗi cụ thể để dễ xử lý trên iPhone
+        var errCode = event.error || 'unknown';
+        if (errCode === 'not-allowed') {
+          resBox.innerHTML = "⚠️ Chưa cấp quyền Micro! Hãy vào Cài đặt Safari > Cho phép truy cập Micro.";
+        } else if (errCode === 'no-speech') {
+          resBox.innerHTML = "⚠️ Không nghe thấy giọng nói. Hãy bấm mic lại và đọc gần điện thoại hơn nhé!";
+        } else {
+          resBox.innerHTML = `⚠️ Lỗi micro (${errCode}). Hãy đảm bảo bạn dùng Safari và kết nối mạng ổn định.`;
+        }
       };
 
-      recognition.start();
+      // Đề phòng trường hợp bị kẹt không bắt được sự kiện, tự động ngắt sau 8 giây
+      setTimeout(function() {
+        if (micBtn.classList.contains("recording")) {
+          recognition.stop();
+          micBtn.classList.remove("recording");
+          if (resBox.innerHTML.includes("Đang nghe")) {
+            resBox.innerHTML = "⚠️ Hết thời gian chờ nghe. Vui lòng bấm lại nút Micro và đọc ngay nhé!";
+          }
+        }
+      }, 8000);
+
+      try {
+        recognition.start();
+      } catch (err) {
+        micBtn.classList.remove("recording");
+        resBox.innerHTML = "⚠️ Không thể khởi động Micro. Hãy tải lại trang web (F5) và thử lại.";
+      }
     }
   </script>
 </body>
