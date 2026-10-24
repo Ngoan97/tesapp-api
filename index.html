@@ -13,19 +13,18 @@
     .pinyin-main { color: #666; font-size: 14px; font-style: italic; }
     .meaning-main { color: #2e7d32; font-size: 14px; font-weight: 500; }
     
-    .action-btns { display: flex; gap: 8px; }
-    .btn { border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .item-row { display: flex; justify-content: space-between; align-items: center; background: #f2f7fa; padding: 8px 10px; border-radius: 6px; margin-top: 8px; border-left: 3px solid #1f4e79; }
+    .item-text { font-size: 15px; color: #333; line-height: 1.4; flex: 1; padding-right: 8px; }
+    
+    .action-btns { display: flex; gap: 6px; flex-shrink: 0; }
+    .btn { border: none; border-radius: 50%; width: 38px; height: 38px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .speaker-btn { background: #e6f4ea; color: #137333; }
     .mic-btn { background: #e8f0fe; color: #1a73e8; }
     .mic-btn.recording { background: #ea4335; color: white; animation: pulse 1.2s infinite; }
 
-    .collocation-box { background: #f2f7fa; border-left: 4px solid #1f4e79; padding: 10px; border-radius: 4px; margin-top: 8px; }
-    .collocation-title { font-size: 12px; color: #555; font-weight: bold; margin-bottom: 4px; }
-    .collocation-text { font-size: 16px; color: #333; line-height: 1.5; white-space: pre-line; }
-
-    .result-box { margin-top: 10px; font-size: 15px; padding: 10px; border-radius: 8px; background: #fff; border: 1px dashed #ccc; display: none; }
-    .char-correct { color: #2e7d32; font-weight: bold; font-size: 18px; }
-    .char-wrong { color: #d32f2f; font-weight: bold; font-size: 18px; background-color: #ffebee; padding: 0 2px; border-radius: 3px; }
+    .result-box { margin-top: 8px; font-size: 14px; padding: 8px; border-radius: 6px; background: #fff; border: 1px dashed #ccc; display: none; }
+    .char-correct { color: #2e7d32; font-weight: bold; font-size: 16px; }
+    .char-wrong { color: #d32f2f; font-weight: bold; font-size: 16px; background-color: #ffebee; padding: 0 2px; border-radius: 3px; }
 
     @keyframes pulse {
       0% { transform: scale(1); }
@@ -36,18 +35,23 @@
 </head>
 <body>
 
-  <h2>🎧 Luyện Nghe & Nói Cụm Từ Cột E</h2>
+  <h2>🎧 Luyện Nghe & Nói Theo Dòng</h2>
   <div id="app" style="width: 100%; max-width: 420px; text-align: center; color: #666;">Đang kết nối dữ liệu từ Google Sheets...</div>
 
   <script>
-    // ⚠️ THAY ĐƯỜNG LINK WEB APP GOOGLE APPS SCRIPT BẠN COPY Ở BƯỚC 1 VÀO NGOẶC KÉP DƯỚI ĐÂY:
-    var API_URL = "https://script.google.com/macros/s/AKfycbxMifCbhgnM-Lc2YuB5pxKZVsM3mwnwmO44K5f1sStX7TAcVekDA8xsMXuUEPK2h3AR/exec";
+    var API_URL = "https://script.google.com/macros/s/AKfycbxMifCbhgnM-Lc2YuB5pxKZVsM3mwnwmO44K5f1sStX7TAcVekDA8xsMXuUEPK2h3AR/exec"; // GIỮ NGUYÊN LINK WEB APP GOOGLE APPS SCRIPT CỦA BẠN
 
     fetch(API_URL)
       .then(response => response.json())
       .then(data => {
         var html = '';
         data.forEach((item, index) => {
+          // Tách các dòng trong Cột E dựa vào dấu xuống dòng (\n) hoặc dấu chấm tròn (•)
+          var rawCollocation = item.collocation || "";
+          var lines = rawCollocation.split(/\r?\n/).filter(line => line.trim() !== "");
+          
+          if (lines.length === 0) lines = [rawCollocation];
+
           html += `
             <div class="card">
               <div class="header-row">
@@ -56,53 +60,59 @@
                   <span class="pinyin-main">(${item.pinyin})</span>
                   <div class="meaning-main">${item.meaning}</div>
                 </div>
+              </div>
+              <div style="font-size: 12px; color: #555; font-weight: bold; margin-bottom: 4px;">📌 Cụm hành động Cột E:</div>`;
+
+          // Tạo vòng lặp hiển thị riêng từng dòng collocation với nút nghe/nói độc lập
+          lines.forEach((line, lineIdx) => {
+            var uniqueId = index + '-' + lineIdx;
+            // Trích xuất phần tiếng Trung để đọc (lấy phần trước dấu ngoặc mở '(' hoặc toàn bộ nếu không có)
+            var cleanLineForAudio = line.replace(/•/g, '').trim();
+
+            html += `
+              <div class="item-row">
+                <div class="item-text">${line}</div>
                 <div class="action-btns">
-                  <button class="btn speaker-btn" title="Nghe mẫu" onclick="playAudio('${encodeURIComponent(item.collocation)}')">🔊</button>
-                  <button class="btn mic-btn" title="Nói thử" id="mic-${index}" onclick="startRecord('${encodeURIComponent(item.collocation)}', ${index})">🎤</button>
+                  <button class="btn speaker-btn" title="Nghe mẫu chậm" onclick="playAudio('${encodeURIComponent(cleanLineForAudio)}')">🔊</button>
+                  <button class="btn mic-btn" title="Nói thử" id="mic-${uniqueId}" onclick="startRecord('${encodeURIComponent(cleanLineForAudio)}', '${uniqueId}')">🎤</button>
                 </div>
               </div>
-              
-              <div class="collocation-box">
-                <div class="collocation-title">📌 Cụm hành động Cột E cần học:</div>
-                <div class="collocation-text">${item.collocation}</div>
-              </div>
+              <div class="result-box" id="res-${uniqueId}"></div>`;
+          });
 
-              <div class="result-box" id="res-${index}"></div>
-            </div>`;
+          html += `</div>`;
         });
         document.getElementById('app').innerHTML = html;
       })
       .catch(err => {
-        document.getElementById('app').innerHTML = "⚠️ Lỗi kết nối! Hãy kiểm tra lại dán đúng link Web App ở Bước 1 chưa nhé.";
+        document.getElementById('app').innerHTML = "⚠️ Lỗi kết nối dữ liệu! Kiểm tra lại đường dẫn API.";
       });
 
-    // 🔊 TÍNH NĂNG NGHE MẪU (PHÁT ÂM CHUẨN BẮC KINH)
+    // 🔊 ĐỌC MẪU CHẬM (Tốc độ 0.65 để nghe rõ từng âm tiết)
     function playAudio(textEncoded) {
       var text = decodeURIComponent(textEncoded);
-      var cleanText = text.replace(/•/g, '').replace(/\(.*?\)/g, ''); // Bỏ các ký tự rác
-      
-      var utterance = new SpeechSynthesisUtterance(cleanText);
+      var utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'zh-CN';
-      utterance.rate = 0.85; // Đọc với tốc độ vừa phải
+      utterance.rate = 0.65; // Đọc chậm rãi giúp người học dễ bắt chước
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     }
 
-    // 🎙️ TÍNH NĂNG NHẬN DIỆN GIỌNG NÓI & PHÂN TÍCH BÔI XANH / ĐỎ
-    function startRecord(targetCollocationEncoded, index) {
-      var targetCollocation = decodeURIComponent(targetCollocationEncoded);
+    // 🎙️ NHẬN DIỆN GIỌNG NÓI & BÔI XANH / ĐỎ TỪNG DÒNG
+    function startRecord(targetLineEncoded, uniqueId) {
+      var targetLine = decodeURIComponent(targetLineEncoded);
       var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       
       if (!SpeechRecognition) {
-        alert("Trình duyệt không hỗ trợ nhận diện giọng nói! Bạn nên dùng Safari trên iPhone hoặc Chrome trên Android.");
+        alert("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói. Hãy dùng Safari trên iOS hoặc Chrome trên Android.");
         return;
       }
 
-      var resBox = document.getElementById('res-' + index);
-      var micBtn = document.getElementById('mic-' + index);
+      var resBox = document.getElementById('res-' + uniqueId);
+      var micBtn = document.getElementById('mic-' + uniqueId);
       
       resBox.style.display = 'block';
-      resBox.innerHTML = "🎙️ <i>Đang nghe... Bạn hãy đọc cụm từ ở Cột E nhé!</i>";
+      resBox.innerHTML = "🎙️ <i>Đang nghe... Bạn hãy đọc cụm này nhé!</i>";
       micBtn.classList.add("recording");
 
       var recognition = new SpeechRecognition();
@@ -117,11 +127,12 @@
         var totalChars = 0;
         var correctCount = 0;
 
-        for (var i = 0; i < targetCollocation.length; i++) {
-          var char = targetCollocation[i];
+        for (var i = 0; i < targetLine.length; i++) {
+          var char = targetLine[i];
           
-          if ("•\n\r\t ()/,-".includes(char) || (char.charCodeAt(0) >= 32 && char.charCodeAt(0) <= 126)) {
-            analysisHTML += char === '\n' ? '<br>' : char;
+          // Chỉ kiểm tra các ký tự tiếng Hán, bỏ qua khoảng trắng, pinyin trong ngoặc, dấu câu
+          if (char === '(') break; // Dừng lại khi gặp phần chú thích tiếng Việt trong ngoặc
+          if ("• \n\r\t/,-".includes(char) || (char.charCodeAt(0) >= 32 && char.charCodeAt(0) <= 126)) {
             continue;
           }
 
@@ -137,17 +148,15 @@
         var score = totalChars > 0 ? Math.round((correctCount / totalChars) * 100) : 0;
         
         resBox.innerHTML = `
-          <div style="margin-bottom: 5px;"><b>Kết quả kiểm tra phát âm:</b></div>
-          <div style="margin-bottom: 8px; line-height: 1.6;">${analysisHTML}</div>
-          <div style="font-size: 13px; color: #555;">
-            • Máy nghe được: <b>"${spokenText}"</b><br>
-            • Độ chính xác: <b style="color: ${score >= 80 ? '#2e7d32' : '#d32f2f'}">${score}%</b>
+          <div style="margin-top: 4px; line-height: 1.6;"><b>So sánh:</b> ${analysisHTML}</div>
+          <div style="font-size: 12px; color: #555; margin-top: 4px;">
+            • Bạn đọc: <b>"${spokenText}"</b> | Chính xác: <b style="color: ${score >= 80 ? '#2e7d32' : '#d32f2f'}">${score}%</b>
           </div>`;
       };
 
-      recognition.onerror = function() {
+      recognition.onerror = function(event) {
         micBtn.classList.remove("recording");
-        resBox.innerHTML = "⚠️ Chưa nghe rõ giọng nói. Bạn hãy bấm mic và thử đọc lại to rõ hơn nhé!";
+        resBox.innerHTML = `⚠️ Không bắt được giọng nói (Lỗi: <i>${event.error || 'No speech'}</i>). Hãy đảm bảo bạn cấp quyền Micro và đọc to, rõ ràng nhé!`;
       };
 
       recognition.start();
