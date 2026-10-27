@@ -3,10 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Luyện Nghe & Phát Âm Tiếng Trung AI</title>
+  <title>Luyện Nghe & Phát Âm Theo Chủ Đề</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f9; padding: 15px; margin: 0; display: flex; flex-direction: column; align-items: center; }
-    h2 { color: #1f4e79; margin-bottom: 15px; text-align: center; }
+    h2 { color: #1f4e79; margin-bottom: 10px; text-align: center; }
+    
+    /* Thanh chọn chủ đề */
+    .filter-container { width: 100%; max-width: 420px; margin-bottom: 15px; }
+    select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; background: white; color: #333; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
     .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 15px; width: 100%; max-width: 420px; box-shadow: 0 3px 8px rgba(0,0,0,0.08); box-sizing: border-box; }
     .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 10px; }
     .hanzi-main { font-size: 24px; font-weight: bold; color: #1f4e79; }
@@ -14,7 +19,7 @@
     .meaning-main { color: #2e7d32; font-size: 14px; font-weight: 500; }
     
     .item-row { display: flex; justify-content: space-between; align-items: center; background: #f2f7fa; padding: 8px 10px; border-radius: 6px; margin-top: 8px; border-left: 3px solid #1f4e79; }
-    .item-text { font-size: 15px; color: #333; line-height: 1.4; flex: 1; padding-right: 8px; }
+    .item-text { font-size: 15px; color: #333; line-height: 1.4; flex: 1; padding-right: 8px; white-space: pre-line; }
     
     .action-btns { display: flex; gap: 6px; flex-shrink: 0; }
     .btn { border: none; border-radius: 50%; width: 38px; height: 38px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -35,68 +40,105 @@
 </head>
 <body>
 
-  <h2>🎧 Luyện Nghe & Nói Theo Dòng</h2>
+  <h2>🎧 Luyện Phát Âm Theo Chủ Đề</h2>
+  
+  <!-- Ô chọn chủ đề -->
+  <div class="filter-container">
+    <select id="topicSelect" onchange="filterData()">
+      <option value="ALL">📂 Tất cả các chủ đề</option>
+    </select>
+  </div>
+
   <div id="app" style="width: 100%; max-width: 420px; text-align: center; color: #666;">Đang kết nối dữ liệu từ Google Sheets...</div>
 
   <script>
-    var API_URL = "https://script.google.com/macros/s/AKfycbxMifCbhgnM-Lc2YuB5pxKZVsM3mwnwmO44K5f1sStX7TAcVekDA8xsMXuUEPK2h3AR/exec";
+    // ⚠️ ĐIỀN LINK WEB APP GOOGLE APPS SCRIPT CỦA BẠN VÀO ĐÂY:
+    var API_URL = "DÁN_LINK_WEB_APP_CỦA_BẠN_VÀO_ĐÂY";
+    var globalData = [];
 
     fetch(API_URL)
       .then(response => response.json())
       .then(data => {
-        var html = '';
-        data.forEach((item, index) => {
-          var rawCollocation = item.collocation || "";
-          var lines = rawCollocation.split(/\r?\n/).filter(line => line.trim() !== "");
-          if (lines.length === 0) lines = [rawCollocation];
-
-          html += `
-            <div class="card">
-              <div class="header-row">
-                <div>
-                  <span class="hanzi-main">${item.hanzi}</span> 
-                  <span class="pinyin-main">(${item.pinyin})</span>
-                  <div class="meaning-main">${item.meaning}</div>
-                </div>
-              </div>
-              <div style="font-size: 12px; color: #555; font-weight: bold; margin-bottom: 4px;">📌 Cụm hành động Cột E:</div>`;
-
-          lines.forEach((line, lineIdx) => {
-            var uniqueId = index + '-' + lineIdx;
-            
-            // 🎯 LỌC CHỈ LẤY PHẦN CHỮ HÁN ĐỂ ĐỌC MẪU (Bỏ qua phần Pinyin trong ngoặc và tiếng Việt)
-            var cleanTextForAudio = line.replace(/•/g, '').replace(/\(.*?\)/g, '').trim();
-
-            html += `
-              <div class="item-row">
-                <div class="item-text">${line}</div>
-                <div class="action-btns">
-                  <button class="btn speaker-btn" title="Nghe mẫu chậm" onclick="playAudio('${encodeURIComponent(cleanTextForAudio)}')">🔊</button>
-                  <button class="btn mic-btn" title="Nói thử" id="mic-${uniqueId}" onclick="startRecord('${encodeURIComponent(cleanTextForAudio)}', '${uniqueId}')">🎤</button>
-                </div>
-              </div>
-              <div class="result-box" id="res-${uniqueId}"></div>`;
-          });
-
-          html += `</div>`;
+        globalData = data;
+        
+        // Tự động thu thập các chủ đề duy nhất để đưa vào thẻ Select
+        var topics = [...new Set(data.map(item => item.topic))];
+        var selectHtml = '<option value="ALL">📂 Tất cả các chủ đề (' + data.length + ' từ)</option>';
+        topics.forEach(t => {
+          var count = data.filter(item => item.topic === t).length;
+          selectHtml += `<option value="${t}">📁 Chủ đề: ${t} (${count})</option>`;
         });
-        document.getElementById('app').innerHTML = html;
+        document.getElementById('topicSelect').innerHTML = selectHtml;
+
+        renderCards(data);
       })
       .catch(err => {
         document.getElementById('app').innerHTML = "⚠️ Lỗi kết nối dữ liệu! Kiểm tra lại đường dẫn API.";
       });
 
-    // 🔊 ĐỌC MẪU CHẬM CHỈ ĐỌC TIẾNG TRUNG
+    // Hàm lọc dữ liệu khi thay đổi chủ đề
+    function filterData() {
+      var selectedTopic = document.getElementById('topicSelect').value;
+      var filtered = selectedTopic === 'ALL' ? globalData : globalData.filter(item => item.topic === selectedTopic);
+      renderCards(filtered);
+    }
+
+    // Hàm hiển thị danh sách thẻ
+    function renderCards(data) {
+      if (data.length === 0) {
+        document.getElementById('app').innerHTML = "<div style='background:white; padding:20px; border-radius:8px;'>Không có từ vựng nào trong chủ đề này.</div>";
+        return;
+      }
+
+      var html = '';
+      data.forEach((item, index) => {
+        var rawCollocation = item.collocation || "";
+        var lines = rawCollocation.split(/\r?\n/).filter(line => line.trim() !== "");
+        if (lines.length === 0) lines = [rawCollocation];
+
+        html += `
+          <div class="card">
+            <div class="header-row">
+              <div>
+                <span class="hanzi-main">${item.hanzi}</span> 
+                <span class="pinyin-main">(${item.pinyin})</span>
+                <div class="meaning-main">${item.meaning}</div>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: #888; font-weight: bold; text-align: right; margin-bottom: 2px;">🏷️ #${item.topic}</div>
+            <div style="font-size: 12px; color: #555; font-weight: bold; margin-bottom: 4px;">📌 Cụm hành động / Mở rộng:</div>`;
+
+        lines.forEach((line, lineIdx) => {
+          var uniqueId = index + '-' + lineIdx;
+          var cleanTextForAudio = line.replace(/•/g, '').replace(/\(.*?\)/g, '').trim();
+
+          html += `
+            <div class="item-row">
+              <div class="item-text">${line}</div>
+              <div class="action-btns">
+                <button class="btn speaker-btn" title="Nghe mẫu" onclick="playAudio('${encodeURIComponent(cleanTextForAudio)}')">🔊</button>
+                <button class="btn mic-btn" title="Nói thử" id="mic-${uniqueId}" onclick="startRecord('${encodeURIComponent(cleanTextForAudio)}', '${uniqueId}')">🎤</button>
+              </div>
+            </div>
+            <div class="result-box" id="res-${uniqueId}"></div>`;
+        });
+
+        html += `</div>`;
+      });
+      document.getElementById('app').innerHTML = html;
+    }
+
+    // 🔊 Đọc mẫu
     function playAudio(textEncoded) {
       var text = decodeURIComponent(textEncoded);
       var utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'zh-CN';
-      utterance.rate = 0.65; // Đọc chậm rãi
+      utterance.rate = 0.65;
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     }
 
-    // 🎙️ NHẬN DIỆN GIỌNG NÓI TRÊN SAFARI (IPHONE)
+    // 🎙️ Nhận diện giọng nói
     function startRecord(targetLineEncoded, uniqueId) {
       var targetLine = decodeURIComponent(targetLineEncoded);
       var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -110,7 +152,7 @@
       var micBtn = document.getElementById('mic-' + uniqueId);
       
       resBox.style.display = 'block';
-      resBox.innerHTML = "🎙️ <i>Đang nghe... Hãy đọc to rõ cụm tiếng Trung nhé!</i>";
+      resBox.innerHTML = "🎙️ <i>Đang nghe... Hãy đọc to rõ nhé!</i>";
       micBtn.classList.add("recording");
 
       var recognition = new SpeechRecognition();
@@ -128,8 +170,6 @@
 
         for (var i = 0; i < targetLine.length; i++) {
           var char = targetLine[i];
-          
-          // Chỉ kiểm tra các ký tự tiếng Hán, bỏ qua khoảng trắng, dấu câu
           if ("• \n\r\t/,-".includes(char) || (char.charCodeAt(0) >= 32 && char.charCodeAt(0) <= 126)) {
             continue;
           }
@@ -152,27 +192,16 @@
           </div>`;
       };
 
-      recognition.onerror = function(event) {
+      recognition.onerror = function() {
         micBtn.classList.remove("recording");
-        // Thông báo lỗi cụ thể để dễ xử lý trên iPhone
-        var errCode = event.error || 'unknown';
-        if (errCode === 'not-allowed') {
-          resBox.innerHTML = "⚠️ Chưa cấp quyền Micro! Hãy vào Cài đặt Safari > Cho phép truy cập Micro.";
-        } else if (errCode === 'no-speech') {
-          resBox.innerHTML = "⚠️ Không nghe thấy giọng nói. Hãy bấm mic lại và đọc gần điện thoại hơn nhé!";
-        } else {
-          resBox.innerHTML = `⚠️ Lỗi micro (${errCode}). Hãy đảm bảo bạn dùng Safari và kết nối mạng ổn định.`;
-        }
+        resBox.innerHTML = "⚠️ Không nghe thấy giọng nói. Hãy bấm mic và đọc lại nhé!";
       };
 
-      // Đề phòng trường hợp bị kẹt không bắt được sự kiện, tự động ngắt sau 8 giây
       setTimeout(function() {
         if (micBtn.classList.contains("recording")) {
           recognition.stop();
           micBtn.classList.remove("recording");
-          if (resBox.innerHTML.includes("Đang nghe")) {
-            resBox.innerHTML = "⚠️ Hết thời gian chờ nghe. Vui lòng bấm lại nút Micro và đọc ngay nhé!";
-          }
+          resBox.innerHTML = "⚠️ Hết thời gian chờ. Vui lòng thử lại!";
         }
       }, 8000);
 
@@ -180,7 +209,7 @@
         recognition.start();
       } catch (err) {
         micBtn.classList.remove("recording");
-        resBox.innerHTML = "⚠️ Không thể khởi động Micro. Hãy tải lại trang web (F5) và thử lại.";
+        resBox.innerHTML = "⚠️ Không thể khởi động Micro.";
       }
     }
   </script>
